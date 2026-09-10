@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  role          String         @default("USER")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  phone         String?
+  reports       Report[]
+  sessions      Session[]
+  verifications Verification[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id            String         @id @default(cuid())
+  subject       String
+  description   String
+  department    String         @default("AOB")
+  status        String         @default("PENDING")
+  result        String         @default("NOT_VERIFIED")
+  userId        String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  user          User?          @relation(fields: [userId], references: [id])
+  verifications Verification[]
+}
+
+model Verification {
+  id           String   @id @default(cuid())
+  reportId     String?
+  department   String
+  credentialNo String
+  result       String
+  verifiedBy   String
+  notes        String?
+  userId       String?
+  createdAt    DateTime @default(now())
+  user         User?    @relation(fields: [userId], references: [id])
+  report       Report?  @relation(fields: [reportId], references: [id])
+}
+
+model PoliceOfficer {
+  id        String   @id @default(cuid())
+  officerNo String   @unique
+  name      String
+  rank      String
+  station   String?
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LandProfessional {
+  id             String   @id @default(cuid())
+  registrationNo String   @unique
+  name           String
+  profession     String
+  organization   String?
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model JudicialPersonnel {
+  id           String   @id @default(cuid())
+  credentialNo String   @unique
+  name         String
+  position     String
+  court        String?
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+model LoginAttempt {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  failedCount Int      @default(0)
+  lockedUntil DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
