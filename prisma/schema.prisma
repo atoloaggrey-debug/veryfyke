@@ -3,98 +3,180 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url = env("DATABASE_URL")
 }
 
 model User {
-  id            String         @id @default(cuid())
-  name          String
-  email         String         @unique
-  passwordHash  String
-  role          String         @default("USER")
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  phone         String?
-  reports       Report[]
-  sessions      Session[]
-  verifications Verification[]
+  id String @id @default(cuid())
+  name String
+  email String @unique
+  passwordHash String
+  phone String?
+  role UserRole @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reports Report[]
+  sessions Session[]
+  verifications Verification[] @relation("RequestedVerifications")
+  actions Verification[] @relation("PerformedVerifications")
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  token     String   @unique
-  userId    String
+  id String @id @default(cuid())
+  token String @unique
+  userId String
   expiresAt DateTime
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
-model Report {
-  id            String         @id @default(cuid())
-  subject       String
-  description   String
-  department    String         @default("AOB")
-  status        String         @default("PENDING")
-  result        String         @default("NOT_VERIFIED")
-  userId        String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  user          User?          @relation(fields: [userId], references: [id])
-  verifications Verification[]
-}
-
-model Verification {
-  id           String   @id @default(cuid())
-  reportId     String?
-  department   String
-  credentialNo String
-  result       String
-  verifiedBy   String
-  notes        String?
-  userId       String?
-  createdAt    DateTime @default(now())
-  user         User?    @relation(fields: [userId], references: [id])
-  report       Report?  @relation(fields: [reportId], references: [id])
-}
-
-model PoliceOfficer {
-  id        String   @id @default(cuid())
-  officerNo String   @unique
-  name      String
-  rank      String
-  station   String?
-  status    String   @default("ACTIVE")
+model LoginAttempt {
+  id String @id @default(cuid())
+  email String @unique
+  failedCount Int @default(0)
+  lockedUntil DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+model Report {
+  id String @id @default(cuid())
+  subject String
+  description String
+  department Department @default(AOB)
+  category ReportCategory @default(OTHER)
+  status ReportStatus @default(PENDING)
+
+  userId String?
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  verifications Verification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([department])
+  @@index([userId])
+}
+
+model Verification {
+  id String @id @default(cuid())
+  department Department
+  credentialNo String
+  result VerificationResult
+  notes String?
+
+  reportId String?
+  report Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  userId String? // who requested
+  user User? @relation("RequestedVerifications", fields: [userId], references: [id], onDelete: SetNull)
+
+  verifiedById String? // who performed (admin)
+  verifiedBy User? @relation("PerformedVerifications", fields: [verifiedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([department, credentialNo])
+  @@index([reportId])
+}
+
+model PoliceOfficer {
+  id String @id @default(cuid())
+  officerNo String @unique
+  name String
+  rank String
+  station String?
+  status CredentialStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
 model LandProfessional {
-  id             String   @id @default(cuid())
-  registrationNo String   @unique
-  name           String
-  profession     String
-  organization   String?
-  status         String   @default("ACTIVE")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id String @id @default(cuid())
+  registrationNo String @unique
+  name String
+  profession LandProfession
+  organization String?
+  status CredentialStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profession, status])
 }
 
 model JudicialPersonnel {
-  id           String   @id @default(cuid())
-  credentialNo String   @unique
-  name         String
-  position     String
-  court        String?
-  status       String   @default("ACTIVE")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id String @id @default(cuid())
+  credentialNo String @unique
+  name String
+  position JudicialPosition
+  court String?
+  status CredentialStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([position, status])
 }
-model LoginAttempt {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  failedCount Int      @default(0)
-  lockedUntil DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum Department {
+  POLICE
+  LAND
+  JUDICIAL
+  AOB
+}
+
+enum VerificationResult {
+  VERIFIED
+  NOT_VERIFIED
+}
+
+enum CredentialStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+enum LandProfession {
+  SURVEYOR
+  LAND_VALUER
+  REGISTRAR
+  CLERK
+  LAND_ADMINISTRATION_OFFICER
+}
+
+enum JudicialPosition {
+  JUDICIAL_OFFICER
+  MAGISTRATE
+  COURT_PERSONNEL
+  JUDICIAL_ADMINISTRATION_OFFICER
+}
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  RESOLVED
+  CLOSED
+}
+
+enum ReportCategory {
+  GENERAL_FEEDBACK
+  NEGATIVE_FEEDBACK
+  SUSPICIOUS_ACTIVITY
+  VERIFICATION_PROBLEM
+  SUGGESTION
+  OTHER
 }
